@@ -7,8 +7,11 @@ make
 
 ## Run
 ```
-./cublas.test sgemm 1000 1000 1000
-./cublas.test cgemm 1000 1000 1000
+./cublas.test s N T 1000 1000 1000
+./cublas.test c N T 1000 1000 1000
+./cublas.test z N T 1000 1000 1000
+./cublas.test d N T 1000 1000 1000
+./cublas.test h N T 1000 1000 1000
 ```
 
 ## LICENSE
