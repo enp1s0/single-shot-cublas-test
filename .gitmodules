@@ -1,0 +1,3 @@
+[submodule "src/mateval"]
+	path = src/mateval
+	url = https://github.com/enp1s0/mateval

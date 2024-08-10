@@ -2,6 +2,7 @@
 
 ## Build
 ```
+git submodule --update --recursive
 make
 ```
 
