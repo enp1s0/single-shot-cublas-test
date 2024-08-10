@@ -1,3 +1,9 @@
 [submodule "src/mateval"]
 	path = src/mateval
 	url = https://github.com/enp1s0/mateval
+[submodule "src/cutf"]
+	path = src/cutf
+	url = https://github.com/enp1s0/cutf
+[submodule "src/curand_fp16"]
+	path = src/curand_fp16
+	url = https://github.com/enp1s0/curand_fp16

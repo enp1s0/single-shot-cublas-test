@@ -7,6 +7,9 @@
 #include <mateval/cuda/comparison.hpp>
 #include <mateval/cuda/utils.hpp>
 
+#include <cutf/curand.hpp>
+#include <curand_fp16/curand_fp16.hpp>
+
 constexpr unsigned num_test = 128;
 
 template <class T>
@@ -56,6 +59,24 @@ struct run_gemm_base {
 };
 
 template <class T>
+struct real_type {
+  using type = T;
+};
+
+template <>
+struct real_type<cuDoubleComplex> {
+  using type = double;
+};
+
+template <>
+struct real_type<cuComplex> {
+  using type = float;
+};
+
+template <class T>
+using real_type_v = typename real_type<T>::type;
+
+template <class T>
 struct run_gemm : run_gemm_base {
   void operator() (
       cublasOperation_t op_a,
@@ -76,6 +97,20 @@ struct run_gemm : run_gemm_base {
     cudaMalloc(&mat_b, mat_b_size * sizeof(T));
     cudaMalloc(&mat_c, mat_c_size * sizeof(T));
     cudaMalloc(&mat_d, mat_c_size * sizeof(T));
+
+    if constexpr (!std::is_same_v<T, half>) {
+      auto cgen = cutf::curand::get_curand_unique_ptr(CURAND_RNG_PSEUDO_XORWOW);
+      cutf::curand::generate_normal(*cgen.get(), reinterpret_cast<real_type_v<T>*>(mat_a), mat_a_size, 0, 1);
+      cutf::curand::generate_normal(*cgen.get(), reinterpret_cast<real_type_v<T>*>(mat_b), mat_b_size, 0, 1);
+      cutf::curand::generate_normal(*cgen.get(), reinterpret_cast<real_type_v<T>*>(mat_c), mat_c_size, 0, 1);
+    } else {
+      mtk::curand_fp16::generator_t cugen;
+      mtk::curand_fp16::create(cugen, CURAND_RNG_PSEUDO_XORWOW);
+
+      mtk::curand_fp16::normal(cugen, reinterpret_cast<real_type_v<T>*>(mat_a), mat_a_size, 0, 1);
+      mtk::curand_fp16::normal(cugen, reinterpret_cast<real_type_v<T>*>(mat_b), mat_b_size, 0, 1);
+      mtk::curand_fp16::normal(cugen, reinterpret_cast<real_type_v<T>*>(mat_c), mat_c_size, 0, 1);
+    }
 
     cudaMemset(mat_a, 0x0, mat_a_size * sizeof(T));
     cudaMemset(mat_b, 0x0, mat_b_size * sizeof(T));
