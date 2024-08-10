@@ -4,6 +4,9 @@
 #include <type_traits>
 #include <string>
 
+#include <mateval/cuda/comparison.hpp>
+#include <mateval/cuda/utils.hpp>
+
 constexpr unsigned num_test = 128;
 
 template <class T>
@@ -68,14 +71,16 @@ struct run_gemm : run_gemm_base {
     const auto mat_b_size = ldb * (op_b == CUBLAS_OP_N ? n : k);
     const auto mat_c_size = ldc * n;
 
-    T *mat_a, *mat_b, *mat_c;
+    T *mat_a, *mat_b, *mat_c, *mat_d;
     cudaMalloc(&mat_a, mat_a_size * sizeof(T));
     cudaMalloc(&mat_b, mat_b_size * sizeof(T));
     cudaMalloc(&mat_c, mat_c_size * sizeof(T));
+    cudaMalloc(&mat_d, mat_c_size * sizeof(T));
 
-    cudaMemset(mat_a, 0xee, mat_a_size * sizeof(T));
-    cudaMemset(mat_b, 0xee, mat_b_size * sizeof(T));
-    cudaMemset(mat_c, 0xee, mat_c_size * sizeof(T));
+    cudaMemset(mat_a, 0x0, mat_a_size * sizeof(T));
+    cudaMemset(mat_b, 0x0, mat_b_size * sizeof(T));
+    cudaMemset(mat_c, 0x0, mat_c_size * sizeof(T));
+    cudaMemcpy(mat_d, mat_c, mat_c_size * sizeof(T), cudaMemcpyDefault);
 
     cublasHandle_t cublas_handle;
     cublasCreate(&cublas_handle);
@@ -84,6 +89,34 @@ struct run_gemm : run_gemm_base {
     const auto start_clock = std::chrono::system_clock::now();
 
     const T alpha = one<T>(), beta = one<T>();
+
+    cublasGemmEx(
+        cublas_handle,
+        op_a,
+        op_b,
+        m, n, k,
+        &alpha,
+        mat_a, get_cuda_data_type<T>(), lda,
+        mat_b, get_cuda_data_type<T>(), ldb,
+        &beta,
+        mat_d, get_cuda_data_type<T>(), ldc,
+        get_cuda_data_type<T>(),
+        CUBLAS_GEMM_DEFAULT
+        );
+    const auto error = mtk::mateval::cuda::get_error_GEMM(
+        mtk::mateval::relative_residual,
+        m, n, k,
+        mtk::mateval::utils::get_mateval_layout(op_a),
+        mtk::mateval::utils::get_mateval_layout(op_b),
+        mtk::mateval::col_major,
+        mtk::mateval::col_major,
+        alpha,
+        mat_a, lda,
+        mat_b, ldb,
+        beta,
+        mat_c, ldc,
+        mat_d, ldc
+        );
 
     for (unsigned t = 0; t < num_test; t++) {
       cublasGemmEx(
@@ -111,12 +144,13 @@ struct run_gemm : run_gemm_base {
       complexity *= 4;
     }
 
-    std::printf("op_A=%s, op_B=%s, shape=(%lu, %lu, %lu), ld=(%lu, %lu, %lu), throughput=%e TFlop/s\n",
+    std::printf("op_A=%s, op_B=%s, shape=(%lu, %lu, %lu), ld=(%lu, %lu, %lu), throughput=%e TFlop/s, relative_error=%e\n",
                 get_op_str(op_a).c_str(),
                 get_op_str(op_b).c_str(),
                 m, n, k,
                 lda, ldb, ldc,
-                complexity * num_test / elapsed_time * 1e-12
+                complexity * num_test / elapsed_time * 1e-12,
+                error.at(mtk::mateval::relative_residual)
                );
 
     cublasDestroy(cublas_handle);
@@ -124,6 +158,7 @@ struct run_gemm : run_gemm_base {
     cudaFree(mat_a);
     cudaFree(mat_b);
     cudaFree(mat_c);
+    cudaFree(mat_d);
   }
 };
 
