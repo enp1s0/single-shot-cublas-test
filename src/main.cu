@@ -10,7 +10,7 @@
 #include <cutf/curand.hpp>
 #include <curand_fp16/curand_fp16.hpp>
 
-constexpr unsigned num_test = 128;
+constexpr unsigned num_test = 8;
 
 template <class T>
 inline cudaDataType get_cuda_data_type();
@@ -120,7 +120,6 @@ struct run_gemm : run_gemm_base {
     cublasCreate(&cublas_handle);
 
     cudaDeviceSynchronize();
-    const auto start_clock = std::chrono::system_clock::now();
 
     const T alpha = one<T>(), beta = one<T>();
 
@@ -152,6 +151,8 @@ struct run_gemm : run_gemm_base {
         mat_d, ldc
         );
 
+    cudaDeviceSynchronize();
+    const auto start_clock = std::chrono::system_clock::now();
     for (unsigned t = 0; t < num_test; t++) {
       cublasGemmEx(
           cublas_handle,
